@@ -1,6 +1,7 @@
 package org.example;
 
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.*;
@@ -16,13 +17,25 @@ import java.io.IOException;
 
 public class Main extends Configured implements Tool {
 
+    private final Boolean DEBUG = Boolean.TRUE;
+
     public static void main(String[] args) throws Exception {
         int res = ToolRunner.run(new Main(), args);
         System.exit(res);
     }
 
     public int run(String[] args) throws Exception {
-        Job job = Job.getInstance(getConf(), "Project1");
+
+        Configuration conf = getConf();
+
+        if (DEBUG){
+
+            conf.set("mapreduce.framework.name", "local");
+            conf.set("fs.defaultFS", "file:///");
+
+        }
+
+        Job job = Job.getInstance(conf, "Project1");
         job.setJarByClass(this.getClass());
         FileInputFormat.addInputPath(job, new Path(args[0]));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
