@@ -17,7 +17,8 @@ import java.io.IOException;
 
 public class Main extends Configured implements Tool {
 
-    private final Boolean DEBUG = Boolean.TRUE;
+//    private final Boolean DEBUG = Boolean.TRUE;
+    private final Boolean DEBUG = Boolean.FALSE;
 
     public static void main(String[] args) throws Exception {
         int res = ToolRunner.run(new Main(), args);
@@ -25,6 +26,16 @@ public class Main extends Configured implements Tool {
     }
 
     public int run(String[] args) throws Exception {
+
+        if(DEBUG){
+            System.out.println("DEBUG: args.length = " + args.length);
+            if (args.length > 0) {
+                System.out.println("DEBUG: args[0] (Input Path) = " + args[0]);
+            }
+            if (args.length > 1) {
+                System.out.println("DEBUG: args[1] (Output Path) = " + args[1]);
+            }
+        }
 
         Configuration conf = getConf();
 
@@ -37,21 +48,22 @@ public class Main extends Configured implements Tool {
 
         Job job = Job.getInstance(conf, "Project1");
         job.setJarByClass(this.getClass());
-        FileInputFormat.addInputPath(job, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        FileInputFormat.addInputPath(job, new Path(args[1]));
+        FileOutputFormat.setOutputPath(job, new Path(args[2]));
         job.setMapperClass(FootballMapper.class);
         job.setCombinerClass(FootballCombiner.class);
         job.setReducerClass(FootballReducer.class);
 
-        job.setMapOutputKeyClass(ArrayWritable.class);
-        job.setMapOutputValueClass(ArrayWritable.class);
+        job.setMapOutputKeyClass(IdSeasonWritable.class);
+        job.setMapOutputValueClass(GoalsMatchesWritable.class);
+
 
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
         return job.waitForCompletion(true) ? 0 : 1;
     }
 
-    public static class FootballMapper extends Mapper<LongWritable, Text, ArrayWritable, ArrayWritable> {
+    public static class FootballMapper extends Mapper<LongWritable, Text, IdSeasonWritable, GoalsMatchesWritable> {
 
 
         private IntWritable season = new IntWritable();
@@ -59,10 +71,10 @@ public class Main extends Configured implements Tool {
         private Text away_id = new Text();
         private IntWritable home_goals = new IntWritable();
         private IntWritable away_goals = new IntWritable();
-        private ArrayWritable key_out_home = new ArrayWritable(Text.class);
-        private ArrayWritable val_out_home = new ArrayWritable(IntWritable.class);
-        private ArrayWritable key_out_away = new ArrayWritable(Text.class);
-        private ArrayWritable val_out_away = new ArrayWritable(IntWritable.class);
+        private IdSeasonWritable key_out_home = new IdSeasonWritable();
+        private GoalsMatchesWritable val_out_home = new GoalsMatchesWritable();
+        private IdSeasonWritable key_out_away = new IdSeasonWritable();
+        private GoalsMatchesWritable val_out_away = new GoalsMatchesWritable();
 
 
 //          match_id,home_team_id,away_team_id,home_score,away_score,date,attendance
@@ -97,11 +109,11 @@ public class Main extends Configured implements Tool {
                         i++;
                     }
                     //TODO: write intermediate pair to the context
-                    key_out_home.set(new Text[]{home_id, new Text(season.toString())});
-                    val_out_home.set(new IntWritable[]{home_goals, new IntWritable(1)});
+                    key_out_home.set(home_id, season);
+                    val_out_home.set(home_goals.get(), 1);
                     context.write(key_out_home, val_out_home);
-                    key_out_away.set(new Text[]{away_id, new Text(season.toString())});
-                    val_out_away.set(new IntWritable[]{away_goals, new IntWritable(1)});
+                    key_out_away.set(home_id, season);
+                    val_out_away.set(away_goals.get(), 1);
                     context.write(key_out_away, val_out_away);
                 }
             } catch (Exception e) {
@@ -110,7 +122,7 @@ public class Main extends Configured implements Tool {
         }
     }
 
-    public static class FootballReducer extends Reducer<ArrayWritable, ArrayWritable, Text, Text> {
+    public static class FootballReducer extends Reducer<IdSeasonWritable, GoalsMatchesWritable, Text, Text> {
 
         private final Text val_out = new Text();
         private final Text key_out = new Text();
@@ -119,22 +131,17 @@ public class Main extends Configured implements Tool {
         int sum;
 
 
-        public void reduce(Iterable<ArrayWritable> key, Iterable<ArrayWritable> values,
+        public void reduce(IdSeasonWritable key, Iterable<GoalsMatchesWritable> values,
                            Context context) throws IOException, InterruptedException {
             average = 0f;
             count = 0f;
             sum = 0;
 
-            for ( ArrayWritable arr : key){
-                Writable[] w = arr.get();
+            key_out.set(key.getId().toString() + ',' + key.getSeason().toString() + ',');
 
-                key_out.set(w[0].toString()+','+w[1].toString()+',');
-            }
-
-            for ( ArrayWritable arr : values){
-                Writable[] w = arr.get();
-                sum += ((IntWritable) w[0]).get();
-                count += ((IntWritable) w[1]).get();
+            for (GoalsMatchesWritable val : values){ // Changed from IntArrayWritable
+                sum += val.getGoals().get();
+                count += val.getMatches().get();
             }
 
             average = sum/count;
@@ -146,22 +153,25 @@ public class Main extends Configured implements Tool {
         }
     }
 
-    public static class FootballCombiner extends Reducer<ArrayWritable, ArrayWritable, ArrayWritable, ArrayWritable> {
+    public static class FootballCombiner extends Reducer<IdSeasonWritable, GoalsMatchesWritable, IdSeasonWritable, GoalsMatchesWritable> {
 
-        private int goals = 0;
-        private int matches = 0;
+        private GoalsMatchesWritable combined_out = new GoalsMatchesWritable();
+
 
         @Override
-        public void reduce(ArrayWritable key, Iterable<ArrayWritable> values, Context context) throws IOException, InterruptedException {
+        public void reduce(IdSeasonWritable key, Iterable<GoalsMatchesWritable> values, Context context) throws IOException, InterruptedException {
 
+            int currentGoals = 0; // Local variables for accumulation
+            int currentMatches = 0;
 
-           for ( ArrayWritable arr : values){
-               Writable[] w = arr.get();
-               goals += ((IntWritable) w[0]).get();
-               matches += ((IntWritable) w[1]).get();
-           }
+            for (GoalsMatchesWritable val : values){ // Changed from IntArrayWritable
+                currentGoals += val.getGoals().get();
+                currentMatches += val.getMatches().get();
+            }
 
-           context.write(key, new ArrayWritable(IntWritable.class, new IntWritable[]{new IntWritable(goals), new IntWritable(matches)}));
+            combined_out.set(currentGoals, currentMatches);
+
+            context.write(key, combined_out);
         }
     }
 }
