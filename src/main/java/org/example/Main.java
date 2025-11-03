@@ -137,7 +137,7 @@ public class Main extends Configured implements Tool {
             count = 0f;
             sum = 0;
 
-            key_out.set(key.getId().toString() + ',' + key.getSeason().toString() + ',');
+            key_out.set(key.getId().toString() + '\t' + key.getSeason().toString());
 
             for (GoalsMatchesWritable val : values){ // Changed from IntArrayWritable
                 sum += val.getGoals().get();
@@ -146,7 +146,7 @@ public class Main extends Configured implements Tool {
 
             average = sum/count;
 
-            val_out.set(count.toString()+','+average.toString());
+            val_out.set(count.toString()+'\t'+average.toString());
 
             context.write(key_out, val_out);
 
