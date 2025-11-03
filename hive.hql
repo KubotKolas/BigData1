@@ -1,0 +1,105 @@
+USE default;
+
+-- Drop existing tables if they exist
+DROP TABLE IF EXISTS mr_output_external;
+DROP TABLE IF EXISTS teams_csv_external;
+DROP TABLE IF EXISTS mr_output_orc;
+DROP TABLE IF EXISTS teams_orc;
+DROP TABLE IF EXISTS final_league_summary_json; -- Renamed for clarity as the final output
+
+
+
+-- 1. Import MR output as external table
+CREATE EXTERNAL TABLE mr_output_external (
+    team_id STRING,             
+    season STRING,              
+    matches_played INT,         
+    avg_goals_per_match DOUBLE  
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\t'
+LOCATION '${hiveconf:mr_output_location}';
+
+
+-- 2. Import CSV data as external table
+-- CSV data description: team_id, name, city, league, coach
+CREATE EXTERNAL TABLE teams_csv_external (
+    team_id STRING,             
+    name STRING,
+    city STRING,
+    league STRING,              
+    coach STRING
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+    "separatorChar" = ",",
+    "quoteChar" = "\"",
+    "escapeChar" = "\\",
+    "skip.header.line.count" = "1"
+)
+LOCATION '${hiveconf:teams_csv_location}';
+
+
+-- 3. Convert MR output to ORC
+CREATE TABLE mr_output_orc
+STORED AS ORC
+AS SELECT
+    team_id,
+    season,
+    matches_played,            
+    avg_goals_per_match,       
+    CAST(matches_played * avg_goals_per_match AS DOUBLE) AS total_goals_scored_for_team_season
+FROM mr_output_external;
+
+
+-- 4. Convert CSV data to ORC
+CREATE TABLE teams_orc
+STORED AS ORC
+AS SELECT * FROM teams_csv_external;
+
+
+-- 5. Create the final output table directly with JSON SerDe
+CREATE EXTERNAL TABLE final_league_summary_json (
+    league STRING,                   
+    total_matches INT,               
+    avg_goals_per_match DOUBLE,      
+    teams_ranking STRING             
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.JsonSerde'
+WITH SERDEPROPERTIES ("serialization.null.format"="null")
+LOCATION '${hiveconf:json_output_location}';
+
+
+-- 6. Populate the final_league_summary_json table
+INSERT OVERWRITE TABLE final_league_summary_json
+SELECT
+    league_aggs.league,
+    league_aggs.total_matches,
+    league_aggs.avg_goals_per_match,
+    TO_JSON(ranked_teams.teams_ranking_array) AS teams_ranking
+FROM (
+    -- Calculate league-level aggregates: total_matches, avg_goals_per_match
+    SELECT
+        t.league,
+        SUM(m.matches_played) AS total_matches,
+        SUM(m.total_goals_scored_for_team_season) / SUM(m.matches_played) AS avg_goals_per_match
+    FROM mr_output_orc m
+    JOIN teams_orc t ON m.team_id = t.team_id
+    GROUP BY t.league
+) league_aggs
+JOIN (
+    -- Calculate team rankings and prepare the array of structs
+    SELECT
+        t.league,
+        COLLECT_LIST(named_struct('team_id', m.team_id, 'rank_in_league', team_rank)) AS teams_ranking_array
+    FROM (
+        SELECT
+            m.team_id,
+            t.league,
+            m.matches_played,
+            ROW_NUMBER() OVER (PARTITION BY t.league ORDER BY m.matches_played DESC) AS team_rank
+        FROM mr_output_orc m
+        JOIN teams_orc t ON m.team_id = t.team_id
+    ) ranked_teams_base
+    GROUP BY league
+) ranked_teams ON league_aggs.league = ranked_teams.league;
