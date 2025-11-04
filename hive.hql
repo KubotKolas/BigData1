@@ -7,7 +7,7 @@ DROP TABLE IF EXISTS mr_output_orc;
 DROP TABLE IF EXISTS teams_orc;
 DROP TABLE IF EXISTS final_league_summary_json; -- Renamed for clarity as the final output
 
-
+ADD JAR /usr/lib/hive-hcatalog/share/hcatalog/hive-hcatalog-core-3.1.3.jar;
 ADD JAR ${hiveconf:udf_jar_path};
 
 CREATE TEMPORARY FUNCTION to_json_array_udf AS 'org.example.ToJSONArrayUDF';
