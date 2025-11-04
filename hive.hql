@@ -8,6 +8,9 @@ DROP TABLE IF EXISTS teams_orc;
 DROP TABLE IF EXISTS final_league_summary_json; -- Renamed for clarity as the final output
 
 
+ADD JAR ${hiveconf:udf_jar_path};
+
+CREATE TEMPORARY FUNCTION to_json_array_udf AS 'org.example.ToJSONArrayUDF';
 
 -- 1. Import MR output as external table
 CREATE EXTERNAL TABLE mr_output_external (
@@ -76,21 +79,7 @@ SELECT
     league_aggs.league,
     league_aggs.total_matches,
     league_aggs.avg_goals_per_match,
-    -- !!! Extremely complex and error-prone string manipulation for JSON !!!
-    CONCAT(
-        '[',
-        CONCAT_WS(
-            ',',
-            COLLECT_LIST(
-                CONCAT(
-                    '{"team_id":"', ranked_teams_nested.team_id,
-                    '", "rank_in_league":', CAST(ranked_teams_nested.rank_in_league AS STRING),
-                    '}'
-                )
-            )
-        ),
-        ']'
-    ) AS teams_ranking
+    to_json_array_udf(ranked_teams.teams_ranking_array) AS teams_ranking
 FROM (
     -- Calculate league-level aggregates: total_matches, avg_goals_per_match
     SELECT
@@ -102,13 +91,18 @@ FROM (
     GROUP BY t.league
 ) league_aggs
 JOIN (
-    -- Calculate team rankings and prepare the array of structs (but don't collect yet)
+    -- Calculate team rankings and prepare the array of structs
     SELECT
         t.league,
-        m.team_id,
-        ROW_NUMBER() OVER (PARTITION BY t.league ORDER BY m.matches_played DESC) AS rank_in_league
-    FROM mr_output_orc m
-    JOIN teams_orc t ON m.team_id = t.team_id
-) ranked_teams_nested ON league_aggs.league = ranked_teams_nested.league
-GROUP BY league_aggs.league, league_aggs.total_matches, league_aggs.avg_goals_per_match -- Grouping here to re-collect the list for string manipulation
-;
+        COLLECT_LIST(named_struct('team_id', m.team_id, 'rank_in_league', team_rank)) AS teams_ranking_array
+    FROM (
+        SELECT
+            m.team_id,
+            t.league,
+            m.matches_played,
+            ROW_NUMBER() OVER (PARTITION BY t.league ORDER BY m.matches_played DESC) AS team_rank
+        FROM mr_output_orc m
+        JOIN teams_orc t ON m.team_id = t.team_id
+    ) ranked_teams_base
+    GROUP BY league
+) ranked_teams ON league_aggs.league = ranked_teams.league;

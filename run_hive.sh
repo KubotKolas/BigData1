@@ -38,6 +38,14 @@ if [ "$#" -ne 3 ]; then
     exit 1
 fi
 
+
+# Check for HIVE_UDF_JAR_PATH environment variable
+if [ -z "$HIVE_UDF_JAR_PATH" ]; then
+    error_exit "Environment variable HIVE_UDF_JAR_PATH is not set. This is required for the Hive UDF JAR." 3
+fi
+echo "HIVE UDF JAR Path (from env var): $HIVE_UDF_JAR_PATH"
+
+
 MR_OUTPUT_HDFS_PATH="$1"
 TEAMS_CSV_HDFS_PATH="$2"
 JSON_OUTPUT_HDFS_PATH="$3"
@@ -101,6 +109,7 @@ beeline ${BEELINE_ARGS} \
   --hiveconf mr_output_location="${MR_OUTPUT_HDFS_PATH}" \
   --hiveconf teams_csv_location="${TEAMS_CSV_HDFS_PATH}" \
   --hiveconf json_output_location="${JSON_OUTPUT_HDFS_PATH}" \
+  --hiveconf udf_jar_path="${HIVE_UDF_JAR_PATH}" \
   -f "$HQL_SCRIPT"
 
 BEELINE_EXIT_CODE=$?

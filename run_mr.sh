@@ -54,6 +54,12 @@ else
     fi
 fi
 
+
+# Make the JAR_PATH available as an environment variable
+export HIVE_UDF_JAR_PATH="${JAR_PATH}"
+echo "Exported HIVE_UDF_JAR_PATH=${HIVE_UDF_JAR_PATH}"
+
+
 # Determine the main class from the JAR (assuming it's still org.example.Main)
 # In a more robust script, you might extract this from MANIFEST.MF or take it as an argument.
 MAIN_CLASS="org.example.Main"
