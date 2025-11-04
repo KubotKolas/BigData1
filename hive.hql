@@ -93,8 +93,8 @@ FROM (
 JOIN (
     -- Calculate team rankings and prepare the array of structs
     SELECT
-        t.league,
-        COLLECT_LIST(named_struct('team_id', ranked_teams_base.team_id, 'rank_in_league', team_rank)) AS teams_ranking_array
+        league, -- Corrected: reference league directly from ranked_teams_base
+        COLLECT_LIST(named_struct('team_id', team_id, 'rank_in_league', team_rank)) AS teams_ranking_array
     FROM (
         SELECT
             m.team_id,
