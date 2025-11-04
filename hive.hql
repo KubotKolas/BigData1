@@ -65,7 +65,7 @@ CREATE EXTERNAL TABLE final_league_summary_json (
     avg_goals_per_match DOUBLE,      
     teams_ranking STRING             
 )
-ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.JsonSerde'
+ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
 WITH SERDEPROPERTIES ("serialization.null.format"="null")
 LOCATION '${hiveconf:json_output_location}';
 
