@@ -39,11 +39,45 @@ if [ "$#" -ne 3 ]; then
 fi
 
 
-# Check for HIVE_UDF_JAR_PATH environment variable
-if [ -z "$HIVE_UDF_JAR_PATH" ]; then
-    error_exit "Environment variable HIVE_UDF_JAR_PATH is not set. This is required for the Hive UDF JAR." 3
+# # Check for HIVE_UDF_JAR_PATH environment variable
+# if [ -z "$HIVE_UDF_JAR_PATH" ]; then
+#     error_exit "Environment variable HIVE_UDF_JAR_PATH is not set. This is required for the Hive UDF JAR." 3
+# fi
+# echo "HIVE UDF JAR Path (from env var): $HIVE_UDF_JAR_PATH"
+
+
+echo "Looking for the jar containing UDF with JSON conversion"
+# --- 2. Check for BigData1.jar in the same folder as script ---
+if [ -f "${SCRIPT_DIR}/BigData1.jar" ]; then
+    JAR_PATH="${SCRIPT_DIR}/BigData1.jar"
+    echo "Found BigData1.jar: ${JAR_PATH}"
+else
+    echo "BigData1.jar not found in script directory."
+    # --- 3. If not, check if there is *any* jar in the folder. If a jar is found ask user to confirm it's execution ---
+    candidate_jars=($(find "${SCRIPT_DIR}" -maxdepth 1 -name "*.jar"))
+    if [ "${#candidate_jars[@]}" -eq 1 ]; then
+        read -p "Found a single JAR file: ${candidate_jars[0]}. Do you want to use it? (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            JAR_PATH="${candidate_jars[0]}"
+            echo "Using ${JAR_PATH} as confirmed by user."
+        else
+            exit_with_error "User declined to use the found JAR. Exiting." 2
+        fi
+    elif [ "${#candidate_jars[@]}" -gt 1 ]; then
+        echo "Multiple JAR files found in the directory. Please specify which one to use by renaming it to BigData1.jar or provide a single JAR."
+        echo "Found JARs:"
+        for jar in "${candidate_jars[@]}"; do
+            echo "  - $jar"
+        done
+        exit_with_error "Ambiguous JAR file. Exiting." 2
+    else
+        # --- 4. If no jar print error message and exit with error code 2 ---
+        exit_with_error "No JAR file found in the script directory." 2
+    fi
 fi
-echo "HIVE UDF JAR Path (from env var): $HIVE_UDF_JAR_PATH"
+
+HIVE_UDF_JAR_PATH=$JAR_PATH
 
 
 MR_OUTPUT_HDFS_PATH="$1"
