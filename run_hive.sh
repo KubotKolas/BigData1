@@ -45,6 +45,7 @@ fi
 # fi
 # echo "HIVE UDF JAR Path (from env var): $HIVE_UDF_JAR_PATH"
 
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
 echo "Looking for the jar containing UDF with JSON conversion"
 # --- 2. Check for BigData1.jar in the same folder as script ---
