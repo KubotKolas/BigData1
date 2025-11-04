@@ -73,13 +73,48 @@ WITH SERDEPROPERTIES ("serialization.null.format"="null")
 LOCATION '${hiveconf:json_output_location}';
 
 
--- 6. Populate the final_league_summary_json table
+-- -- 6. Populate the final_league_summary_json table
+-- INSERT OVERWRITE TABLE final_league_summary_json
+-- SELECT
+--     league_aggs.league,
+--     league_aggs.total_matches,
+--     league_aggs.avg_goals_per_match,
+--     to_json_array_udf(ranked_teams.teams_ranking_array) AS teams_ranking
+-- FROM (
+--     -- Calculate league-level aggregates: total_matches, avg_goals_per_match
+--     SELECT
+--         t.league,
+--         SUM(m.matches_played) AS total_matches,
+--         SUM(m.total_goals_scored_for_team_season) / SUM(m.matches_played) AS avg_goals_per_match
+--     FROM mr_output_orc m
+--     JOIN teams_orc t ON m.team_id = t.team_id
+--     GROUP BY t.league
+-- ) league_aggs
+-- JOIN (
+--     -- Calculate team rankings and prepare the array of structs
+--     SELECT
+--         league, -- Corrected: reference league directly from ranked_teams_base
+--         COLLECT_LIST(named_struct('team_id', team_id, 'rank_in_league', team_rank)) AS teams_ranking_array
+--     FROM (
+--         SELECT
+--             m.team_id,
+--             t.league,
+--             m.matches_played,
+--             ROW_NUMBER() OVER (PARTITION BY t.league ORDER BY m.matches_played DESC) AS team_rank
+--         FROM mr_output_orc m
+--         JOIN teams_orc t ON m.team_id = t.team_id
+--     ) ranked_teams_base
+--     GROUP BY league
+-- ) ranked_teams ON league_aggs.league = ranked_teams.league;
+
+-- 6. Populate the final_league_summary_json table without a custom UDF
 INSERT OVERWRITE TABLE final_league_summary_json
 SELECT
     league_aggs.league,
     league_aggs.total_matches,
     league_aggs.avg_goals_per_match,
-    to_json_array_udf(ranked_teams.teams_ranking_array) AS teams_ranking
+    -- Construct the JSON array directly using built-in functions
+    '[' || CONCAT_WS(',', COLLECT_LIST(ranked_teams.team_rank_json)) || ']' AS teams_ranking_json_array
 FROM (
     -- Calculate league-level aggregates: total_matches, avg_goals_per_match
     SELECT
@@ -91,10 +126,11 @@ FROM (
     GROUP BY t.league
 ) league_aggs
 JOIN (
-    -- Calculate team rankings and prepare the array of structs
+    -- Calculate team rankings and prepare the array of JSON strings
     SELECT
-        league, -- Corrected: reference league directly from ranked_teams_base
-        COLLECT_LIST(named_struct('team_id', team_id, 'rank_in_league', team_rank)) AS teams_ranking_array
+        league,
+        -- Create a JSON string for each team's rank
+        TO_JSON(NAMED_STRUCT('team_id', team_id, 'rank_in_league', team_rank)) AS team_rank_json
     FROM (
         SELECT
             m.team_id,
@@ -104,5 +140,8 @@ JOIN (
         FROM mr_output_orc m
         JOIN teams_orc t ON m.team_id = t.team_id
     ) ranked_teams_base
-    GROUP BY league
-) ranked_teams ON league_aggs.league = ranked_teams.league;
+) ranked_teams ON league_aggs.league = ranked_teams.league
+GROUP BY
+    league_aggs.league,
+    league_aggs.total_matches,
+    league_aggs.avg_goals_per_match;
