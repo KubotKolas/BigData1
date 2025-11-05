@@ -66,7 +66,7 @@ CREATE EXTERNAL TABLE final_league_summary_json (
     league STRING,                   
     total_matches INT,               
     avg_goals_per_match DOUBLE,      
-    teams_ranking STRING             
+    teams_ranking ARRAY<STRUCT<team_id: STRING, rank_in_league: INT>>        
 )
 ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
 WITH SERDEPROPERTIES ("serialization.null.format"="null")
@@ -79,7 +79,7 @@ SELECT
     league_aggs.league,
     league_aggs.total_matches,
     league_aggs.avg_goals_per_match,
-    to_json_array_udf(ranked_teams.teams_ranking_array) AS teams_ranking
+    ranked_teams.teams_ranking_array AS teams_ranking
 FROM (
     -- Calculate league-level aggregates: total_matches, avg_goals_per_match
     SELECT
