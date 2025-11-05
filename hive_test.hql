@@ -66,7 +66,7 @@ CREATE EXTERNAL TABLE final_league_summary_json (
     league STRING,                   
     total_matches INT,               
     avg_goals_per_match DOUBLE,      
-    teams_ranking ARRAY<STRUCT<team_id: STRING, rank_in_league: BIGINT>>        
+    teams_ranking ARRAY<STRUCT<team_id: STRING, rank_in_league: INT>>        
 )
 ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
 WITH SERDEPROPERTIES ("serialization.null.format"="null")
