@@ -55,6 +55,7 @@ LOCATION '${hiveconf:json_output_location}';
 
 
 -- populate the final_league_summary_json table
+-- accessing data from external tables as CTEs/temp views
 
 WITH mr_output AS (SELECT
     team_id,
