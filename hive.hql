@@ -3,8 +3,6 @@ USE default;
 -- drop existing tables if they exist
 DROP TABLE IF EXISTS mr_output_external;
 DROP TABLE IF EXISTS teams_csv_external;
-DROP TABLE IF EXISTS mr_output;
-DROP TABLE IF EXISTS teams;
 DROP TABLE IF EXISTS final_league_summary_json;
 
 ADD JAR /usr/lib/hive-hcatalog/share/hcatalog/hive-hcatalog-core-3.1.3.jar;
