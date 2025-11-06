@@ -10,6 +10,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+// Writable containing a Text and an int
 public class IdSeasonWritable implements WritableComparable<IdSeasonWritable> {
     private Text id;
     private IntWritable season;

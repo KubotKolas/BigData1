@@ -1,10 +1,7 @@
 #!/bin/bash
 
-# --- Configuration ---
 HIVE_HQL_FILENAME="hive.hql" # Expected default HQL script name
-BEELINE_ARGS="-u jdbc:hive2://localhost:10000 -n hive -p ''" # Default beeline connection args, adjust as needed
-
-# --- Functions ---
+BEELINE_ARGS="-u jdbc:hive2://localhost:10000 -n hive -p ''" # Default beeline connection args
 
 # Function to display error messages and exit
 error_exit() {
@@ -27,9 +24,7 @@ check_hdfs_input() {
     echo "HDFS input directory $path_var_name is valid."
 }
 
-# --- Main Script Logic ---
-
-# 1. Argument Parsing
+# argument Parsing
 if [ "$#" -ne 3 ]; then
     echo "Usage: $0 <input_dir_1> <input_dir_2> <output_dir>"
     echo "  <input_dir_1>: HDFS path for MR output (e.g., /user/data/mr_output)"
@@ -38,54 +33,11 @@ if [ "$#" -ne 3 ]; then
     exit 1
 fi
 
-
-# # Check for HIVE_UDF_JAR_PATH environment variable
-# if [ -z "$HIVE_UDF_JAR_PATH" ]; then
-#     error_exit "Environment variable HIVE_UDF_JAR_PATH is not set. This is required for the Hive UDF JAR." 3
-# fi
-# echo "HIVE UDF JAR Path (from env var): $HIVE_UDF_JAR_PATH"
-
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-
-echo "Looking for the jar containing UDF with JSON conversion"
-# --- 2. Check for BigData1.jar in the same folder as script ---
-if [ -f "${SCRIPT_DIR}/BigData1.jar" ]; then
-    JAR_PATH="${SCRIPT_DIR}/BigData1.jar"
-    echo "Found BigData1.jar: ${JAR_PATH}"
-else
-    echo "BigData1.jar not found in script directory."
-    # --- 3. If not, check if there is *any* jar in the folder. If a jar is found ask user to confirm it's execution ---
-    candidate_jars=($(find "${SCRIPT_DIR}" -maxdepth 1 -name "*.jar"))
-    if [ "${#candidate_jars[@]}" -eq 1 ]; then
-        read -p "Found a single JAR file: ${candidate_jars[0]}. Do you want to use it? (y/N): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            JAR_PATH="${candidate_jars[0]}"
-            echo "Using ${JAR_PATH} as confirmed by user."
-        else
-            exit_with_error "User declined to use the found JAR. Exiting." 2
-        fi
-    elif [ "${#candidate_jars[@]}" -gt 1 ]; then
-        echo "Multiple JAR files found in the directory. Please specify which one to use by renaming it to BigData1.jar or provide a single JAR."
-        echo "Found JARs:"
-        for jar in "${candidate_jars[@]}"; do
-            echo "  - $jar"
-        done
-        exit_with_error "Ambiguous JAR file. Exiting." 2
-    else
-        # --- 4. If no jar print error message and exit with error code 2 ---
-        exit_with_error "No JAR file found in the script directory." 2
-    fi
-fi
-
-HIVE_UDF_JAR_PATH=$JAR_PATH
-
-
 MR_OUTPUT_HDFS_PATH="$1"
 TEAMS_CSV_HDFS_PATH="$2"
 JSON_OUTPUT_HDFS_PATH="$3"
 
-# 2. Find HQL Script
+# find HQL Script
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 HQL_SCRIPT=""
 
@@ -115,11 +67,11 @@ else
     fi
 fi
 
-# 3. Check Input Directories
+# check Input Directories
 check_hdfs_input "$MR_OUTPUT_HDFS_PATH" "input_dir_1 (MR output)"
 check_hdfs_input "$TEAMS_CSV_HDFS_PATH" "input_dir_2 (CSV data)"
 
-# 4. Check/Manage Output Directory
+# check Output Directory
 echo "Checking HDFS output directory: $JSON_OUTPUT_HDFS_PATH"
 if hdfs dfs -test -e "$JSON_OUTPUT_HDFS_PATH"; then
     if hdfs dfs -ls "$JSON_OUTPUT_HDFS_PATH" | grep -q '^-'; then
@@ -144,7 +96,6 @@ beeline ${BEELINE_ARGS} \
   --hiveconf mr_output_location="${MR_OUTPUT_HDFS_PATH}" \
   --hiveconf teams_csv_location="${TEAMS_CSV_HDFS_PATH}" \
   --hiveconf json_output_location="${JSON_OUTPUT_HDFS_PATH}" \
-  --hiveconf udf_jar_path="${HIVE_UDF_JAR_PATH}" \
   -f "$HQL_SCRIPT"
 
 BEELINE_EXIT_CODE=$?

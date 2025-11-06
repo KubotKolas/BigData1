@@ -7,18 +7,16 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-// This can be a top-level class or a static nested class within Main
+// Writable containing two ints
 public class GoalsMatchesWritable implements Writable {
     private IntWritable goals;
     private IntWritable matches;
 
-    // A public no-argument constructor is ESSENTIAL for Hadoop's deserialization
     public GoalsMatchesWritable() {
         this.goals = new IntWritable();
         this.matches = new IntWritable();
     }
 
-    // A constructor for convenience
     public GoalsMatchesWritable(int goals, int matches) {
         this.goals = new IntWritable(goals);
         this.matches = new IntWritable(matches);

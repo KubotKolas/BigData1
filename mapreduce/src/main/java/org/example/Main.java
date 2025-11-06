@@ -39,27 +39,25 @@ public class Main extends Configured implements Tool {
 
         Configuration conf = getConf();
 
-        if (DEBUG){
-
-            conf.set("mapreduce.framework.name", "local");
-            conf.set("fs.defaultFS", "file:///");
-
-        }
-
         Job job = Job.getInstance(conf, "Project1");
         job.setJarByClass(this.getClass());
+
+//        set input/output paths
         FileInputFormat.addInputPath(job, new Path(args[1]));
         FileOutputFormat.setOutputPath(job, new Path(args[2]));
+
+//        set classes of Mapper, Combiner and Reducer
         job.setMapperClass(FootballMapper.class);
         job.setCombinerClass(FootballCombiner.class);
         job.setReducerClass(FootballReducer.class);
 
+//        set classes for keys and values
         job.setMapOutputKeyClass(IdSeasonWritable.class);
         job.setMapOutputValueClass(GoalsMatchesWritable.class);
 
-
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
+
         return job.waitForCompletion(true) ? 0 : 1;
     }
 
@@ -76,12 +74,13 @@ public class Main extends Configured implements Tool {
         private IdSeasonWritable key_out_away = new IdSeasonWritable();
         private GoalsMatchesWritable val_out_away = new GoalsMatchesWritable();
 
-
+//          sample data:
 //          match_id,home_team_id,away_team_id,home_score,away_score,date,attendance
 //          3bed22e7-affe-4f4a-afe4-8cd263dca57e,e1c8a26d-aad6-4ced-987b-6f6cf382102f,908cdc3f-1ae4-481a-a99c-ecde60da4359,0,4,2018-03-19T16:15,26376
         public void map(LongWritable offset, Text lineText, Context context) {
             try {
                 if (offset.get() != 0) {
+//                    extract data from string
                     String line = lineText.toString();
                     int i = 0;
                     for (String word : line
@@ -99,7 +98,6 @@ public class Main extends Configured implements Tool {
                             away_goals.set(Integer.parseInt(word));
                         }
                         if (i == 5) {
-                            //data
                             int t = Integer.parseInt(word.split("-")[0]);
                             if (Integer.parseInt(word.split("-")[1]) >= 8){
                                 t += 1;
@@ -108,11 +106,15 @@ public class Main extends Configured implements Tool {
                         }
                         i++;
                     }
-                    //TODO: write intermediate pair to the context
+//                    Emit the values
+
+//                    Home team
                     key_out_home.set(home_id, season);
                     val_out_home.set(home_goals.get(), 1);
                     context.write(key_out_home, val_out_home);
-                    key_out_away.set(home_id, season);
+
+//                    Away team
+                    key_out_away.set(away_id, season);
                     val_out_away.set(away_goals.get(), 1);
                     context.write(key_out_away, val_out_away);
                 }
@@ -127,14 +129,15 @@ public class Main extends Configured implements Tool {
         private final Text val_out = new Text();
         private final Text key_out = new Text();
         Float average;
-        Float count;
+        Integer count;
         int sum;
 
 
+//        Aggregate data and calculate statistics
         public void reduce(IdSeasonWritable key, Iterable<GoalsMatchesWritable> values,
                            Context context) throws IOException, InterruptedException {
             average = 0f;
-            count = 0f;
+            count = 0;
             sum = 0;
 
             key_out.set(key.getId().toString() + '\t' + key.getSeason().toString());
@@ -144,7 +147,7 @@ public class Main extends Configured implements Tool {
                 count += val.getMatches().get();
             }
 
-            average = sum/count;
+            average = (float)sum/(float)count;
 
             val_out.set(count.toString()+'\t'+average.toString());
 
@@ -158,6 +161,7 @@ public class Main extends Configured implements Tool {
         private GoalsMatchesWritable combined_out = new GoalsMatchesWritable();
 
 
+//        Aggregate data locally, before network transmission
         @Override
         public void reduce(IdSeasonWritable key, Iterable<GoalsMatchesWritable> values, Context context) throws IOException, InterruptedException {
 
