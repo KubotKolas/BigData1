@@ -41,22 +41,6 @@ WITH SERDEPROPERTIES (
 LOCATION '${hiveconf:teams_csv_location}';
 
 
--- convert MR output to temp view
-CREATE TEMPORARY VIEW mr_output
-AS SELECT
-    team_id,
-    season,
-    matches_played,            
-    avg_goals_per_match,       
-    CAST(matches_played * avg_goals_per_match AS DOUBLE) AS total_goals_scored_for_team_season
-FROM mr_output_external;
-
-
--- convert CSV data to temp view
-CREATE TEMPORARY VIEW teams
-STORED AS ORC
-AS SELECT * FROM teams_csv_external;
-
 
 -- create the final output table directly with JSON SerDe
 CREATE EXTERNAL TABLE final_league_summary_json (
@@ -72,6 +56,14 @@ LOCATION '${hiveconf:json_output_location}';
 
 -- populate the final_league_summary_json table
 
+WITH mr_output AS (SELECT
+    team_id,
+    season,
+    matches_played,            
+    avg_goals_per_match,       
+    CAST(matches_played * avg_goals_per_match AS DOUBLE) AS total_goals_scored_for_team_season
+FROM mr_output_external),
+teams AS (SELECT * FROM teams_csv_external)
 INSERT OVERWRITE TABLE final_league_summary_json
 SELECT
     league_aggs.league,
