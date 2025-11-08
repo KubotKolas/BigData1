@@ -75,21 +75,13 @@ with DAG(
     # Program Hive
     hive = BashOperator(
         task_id="hive",
-        bash_command="""
-
-            set -e
-
-            HQL_SCRIPT="{{ params.dags_home }}/project_files/hive.hql"
-            MR_OUTPUT="{{ params.output_mr_dir }}"
-            TEAMS_CSV="{{ params.input_dir }}/datasource4"
-            FINAL_OUTPUT_DIR="{{ params.output_dir }}"
-
-            beeline -u jdbc:hive2://localhost:10000/default 
-            --hiveconf mr_output_location="$MR_OUTPUT" 
-            --hiveconf teams_csv_location="$TEAMS_CSV" 
-            --hiveconf json_output_location="$FINAL_OUTPUT_DIR" 
-            -f "$HQL_SCRIPT
-        """,
+        bash_command=(
+            'beeline -u jdbc:hive2://localhost:10000/default '
+            '--hiveconf mr_output_location="{{ params.output_mr_dir }}"'
+            '--hiveconf teams_csv_location="{{ params.input_dir }}/datasource4"'
+            '--hiveconf json_output_location="{{ params.output_dir }}"'
+            '-f "{{ params.dags_home }}/project_files/hive.hql"'
+        ),
         trigger_rule="none_failed",
     )
 
