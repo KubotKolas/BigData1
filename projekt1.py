@@ -77,10 +77,10 @@ with DAG(
         task_id="hive",
         bash_command=(
             'beeline -u jdbc:hive2://localhost:10000/default '
-            '--hiveconf mr_output_location="{{ params.output_mr_dir }}"'
-            '--hiveconf teams_csv_location="{{ params.input_dir }}/datasource4"'
-            '--hiveconf json_output_location="{{ params.output_dir }}"'
-            '-f "{{ params.dags_home }}/project_files/hive.hql"'
+            '--hiveconf mr_output_location="{{ params.output_mr_dir }}" '
+            '--hiveconf teams_csv_location="{{ params.input_dir }}/datasource4" '
+            '--hiveconf json_output_location="{{ params.output_dir }}" '
+            '-f "{{ params.dags_home }}/project_files/hive.hql" '
         ),
         trigger_rule="none_failed",
     )
